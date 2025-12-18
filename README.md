@@ -178,11 +178,16 @@ The hardware interface uses mock_components for simulation:
 
 ## Usage
 
-### Basic Usage
+The driver provides two launch modes:
 
-#### 1. Start the Robot System
+1. **Custom Driver Mode** (`demo.launch.py`): Uses custom DUCO driver nodes
+2. **ros2_control Mode** (`demo_ros2_control.launch.py`): Uses standard ros2_control framework with DUCO hardware interface
 
-Launch the complete system with MoveIt2 and RViz:
+### Basic Usage - Custom Driver Mode
+
+#### 1. Start the Robot System (Custom Driver)
+
+Launch the complete system with custom DUCO driver nodes:
 
 ```bash
 source install/setup.bash
@@ -192,11 +197,55 @@ ros2 launch duco_gcr5_910_moveit_config demo.launch.py
 This will start:
 
 - Robot state publisher
-- ros2_control hardware interface
-- Joint state broadcaster
-- Joint trajectory controller
+- DUCO driver nodes (DucoDriver, DucoRobotStatus, DucoTrajectoryAction, DucoRobotControl)
 - MoveIt move_group node
 - RViz with MoveIt plugin
+
+**Arguments:**
+- `server_host_1`: Robot controller IP address (default: `127.0.0.1`)
+- `arm_num`: Number of arms (default: `1`)
+- `arm_dof`: Degrees of freedom (default: `6`)
+
+### Basic Usage - ros2_control Mode
+
+#### 1. Start the Robot System (ros2_control)
+
+**Hardware Requirements:** Ensure the DUCO robot controller is powered on and accessible at the configured IP address.
+
+Launch with standard ros2_control framework:
+
+```bash
+source install/setup.bash
+ros2 launch duco_gcr5_910_moveit_config demo_ros2_control.launch.py robot_ip:=<YOUR_ROBOT_IP>
+```
+
+For testing/simulation without hardware:
+
+```bash
+ros2 launch duco_gcr5_910_moveit_config demo_ros2_control.launch.py use_fake_hardware:=true
+```
+
+This will start:
+
+- Robot state publisher
+- ros2_control hardware interface (DucoHardwareInterface or mock_components)
+- Joint state broadcaster
+- Joint trajectory controller (arm_1_controller)
+- MoveIt move_group node
+- RViz with MoveIt plugin (optional)
+
+**Arguments:**
+- `robot_ip`: Robot controller IP address (default: `192.168.1.10`)
+- `robot_port`: Robot controller port (default: `7003`)
+- `use_fake_hardware`: Use mock hardware instead of real hardware (default: `false`)
+- `use_rviz`: Launch RViz (default: `true`)
+- `db`: Start database (default: `false`)
+
+**Check controllers:**
+```bash
+ros2 control list_controllers
+ros2 control list_hardware_interfaces
+```
 
 #### 2. Using RViz for Motion Planning
 
@@ -209,17 +258,29 @@ In the RViz window:
 
 ### Advanced Usage
 
-#### Custom Robot IP Address
+#### Custom Driver Mode with Custom IP
 
 ```bash
 ros2 launch duco_gcr5_910_moveit_config demo.launch.py \
     server_host_1:=192.168.0.100
 ```
 
+#### ros2_control Mode with Custom IP
+
+```bash
+ros2 launch duco_gcr5_910_moveit_config demo_ros2_control.launch.py \
+    robot_ip:=192.168.1.100 \
+    robot_port:=7003
+```
+
 #### Launch Without RViz
 
 ```bash
+# Custom driver mode
 ros2 launch duco_gcr5_910_moveit_config demo.launch.py use_rviz:=false
+
+# ros2_control mode
+ros2 launch duco_gcr5_910_moveit_config demo_ros2_control.launch.py use_rviz:=false
 ```
 
 #### Using MoveIt Python Interface
@@ -464,7 +525,7 @@ ros2 launch duco_gcr5_910_moveit_config demo.launch.py robot_ip:=<CORRECT_IP>
 **Symptom**: Controller spawner fails
 
 **Solutions**:
-- Check controller configuration in `ros2_controllers.yaml`
+- Check controller configuration in `ros2_controllers.yaml` or `ros2_controllers_hardware.yaml`
 - Verify hardware interface is loaded: `ros2 control list_hardware_interfaces`
 - Check controller manager status
 
@@ -478,6 +539,49 @@ ros2 control list_controllers
 # Manually spawn controller
 ros2 control load_controller arm_1_controller
 ros2 control switch_controllers --activate arm_1_controller
+```
+
+#### 2a. Controller "Already Loaded" or "Cannot Configure from Active State"
+
+**Symptom**: Launch fails with errors like:
+- `Controller already loaded, skipping load_controller`
+- `Controller 'arm_1_controller' can not be configured from 'active' state`
+- `Failed to configure controller`
+
+**Cause**: Controllers from a previous launch are still running
+
+**Solutions**:
+
+```bash
+# Option 1: Kill specific ros2_control processes
+pkill -f "ros2_control_node|controller_manager|spawner"
+
+# Option 2: Kill all ROS2 processes (if safe)
+pkill -f ros2
+
+# Then relaunch with a clean state
+source install/setup.bash
+ros2 launch duco_gcr5_910_moveit_config demo_ros2_control.launch.py
+```
+
+**Prevention**: Always cleanly terminate launches with `Ctrl+C` and wait for all processes to exit before relaunching.
+
+#### 2b. Hardware Connection Verification
+
+After successful launch, verify the system is operational:
+
+```bash
+# Check controllers are active
+ros2 control list_controllers
+# Expected output:
+# arm_1_controller[joint_trajectory_controller/JointTrajectoryController] active
+# joint_state_broadcaster[joint_state_broadcaster/JointStateBroadcaster] active
+
+# Check joint states are published
+ros2 topic echo /joint_states --once
+
+# Check hardware interface status
+ros2 control list_hardware_interfaces
 ```
 
 #### 3. MoveIt Planning Fails
