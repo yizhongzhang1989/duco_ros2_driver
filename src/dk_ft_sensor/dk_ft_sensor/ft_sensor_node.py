@@ -3,12 +3,17 @@
 FT Sensor Node
 
 Simplified standalone force/torque sensor node for DUCO robot.
-Listens to UDP data and publishes /ft_sensor_wrench topic only.
+Listens to UDP data and publishes force/torque sensor data.
 
 The node:
-1. Listens for UDP packets on port 5566 (robot data) 
+1. Listens for UDP packets (configurable host/port)
 2. Extracts FTSensorData from the UDP messages
-3. Publishes /ft_sensor_wrench topic in WrenchStamped format
+3. Publishes force/torque data in WrenchStamped format
+
+Parameters:
+- host: UDP host address (default: "0.0.0.0")
+- port: UDP port number (default: 5566)
+- topic_name: Output topic name (default: "ft_sensor_raw")
 """
 
 import rclpy
@@ -23,20 +28,26 @@ class FTSensorNode(Node):
     def __init__(self):
         super().__init__('ft_sensor_node')
         
-        # Configuration
-        self.host = "0.0.0.0"
-        self.port_data = 5566  # UDP port for sensor data
+        # Declare parameters
+        self.declare_parameter('host', '0.0.0.0')
+        self.declare_parameter('port', 5566)
+        self.declare_parameter('topic_name', 'ft_sensor_raw')
+        
+        # Get parameter values
+        self.host = self.get_parameter('host').get_parameter_value().string_value
+        self.port_data = self.get_parameter('port').get_parameter_value().integer_value
+        self.topic_name = self.get_parameter('topic_name').get_parameter_value().string_value
         
         # Create publisher for force/torque data
         self.ft_sensor_publisher = self.create_publisher(
-            WrenchStamped, 'ft_sensor_wrench', 10)
+            WrenchStamped, self.topic_name, 10)
         
         # Start UDP receiver
         self.start_udp_receiver()
         
         self.get_logger().info('FT Sensor Node started')
-        self.get_logger().info(f'Listening on port {self.port_data} for sensor data')
-        self.get_logger().info('Publishing /ft_sensor_wrench topic')
+        self.get_logger().info(f'Listening on {self.host}:{self.port_data} for sensor data')
+        self.get_logger().info(f'Publishing to /{self.topic_name} topic')
     
     def start_udp_receiver(self):
         """Start UDP receiver thread"""
