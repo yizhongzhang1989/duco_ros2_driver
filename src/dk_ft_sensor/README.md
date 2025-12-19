@@ -27,49 +27,93 @@ This package provides a ROS2 node specifically designed for **Dapkon force/torqu
 
 ### Build and Install the package
 
-\`\`\`bash
+```bash
 cd /home/robot/Documents/robot_control_examples
 colcon build --packages-select dk_ft_sensor
 source install/setup.bash
-\`\`\`
+```
 
 ### Run the node
 
 **Basic usage:**
 
-\`\`\`bash
+```bash
 ros2 run dk_ft_sensor ft_sensor_node
-\`\`\`
+```
 
 **With custom parameters:**
 
-\`\`\`bash
+```bash
 ros2 run dk_ft_sensor ft_sensor_node --ros-args -p host:="0.0.0.0" -p port:=5566 -p topic_name:="ft_sensor_raw"
-\`\`\`
+```
 
 **Using the launch file:**
 
-\`\`\`bash
+```bash
 ros2 launch dk_ft_sensor ft_sensor.launch.py
-\`\`\`
+```
 
 **Launch file with custom parameters:**
 
-\`\`\`bash
+```bash
 ros2 launch dk_ft_sensor ft_sensor.launch.py host:="0.0.0.0" port:=5566 topic_name:="ft_sensor_raw"
-\`\`\`
+```
 
 ### Monitor the output
 
-\`\`\`bash
+```bash
 ros2 topic echo /ft_sensor_raw
-\`\`\`
+```
 
 Or with a custom topic name:
 
-\`\`\`bash
+```bash
 ros2 topic echo /<your_topic_name>
-\`\`\`
+```
+
+### Topic Relay (Optional)
+
+If you need to republish the sensor data to a different topic name (e.g., for compatibility with other systems), you can use the built-in `topic_tools` relay:
+
+**Install topic_tools (if not already installed):**
+
+```bash
+sudo apt install ros-humble-topic-tools
+```
+
+**Relay the topic:**
+
+```bash
+ros2 run topic_tools relay /ft_sensor_raw /ft_sensor_wrench
+```
+
+This will create a new topic `/ft_sensor_wrench` that mirrors the content of `/ft_sensor_raw`.
+
+**Or add to a launch file:**
+
+```python
+from launch import LaunchDescription
+from launch_ros.actions import Node
+
+def generate_launch_description():
+    return LaunchDescription([
+        # FT Sensor node
+        Node(
+            package='dk_ft_sensor',
+            executable='ft_sensor_node',
+            name='ft_sensor_node',
+            output='screen',
+        ),
+        # Topic relay
+        Node(
+            package='topic_tools',
+            executable='relay',
+            name='ft_sensor_relay',
+            arguments=['/ft_sensor_raw', '/ft_sensor_wrench'],
+            output='screen',
+        ),
+    ])
+```
 
 ## Topics
 
@@ -92,11 +136,11 @@ The Dapkon F/T sensor transmits force and torque measurements via UDP. Configure
 ### Data Format
 
 The node expects UDP packets containing JSON data with the following structure:
-\`\`\`json
+```json
 {
   "FTSensorData": [Fx, Fy, Fz, Tx, Ty, Tz]
 }
-\`\`\`
+```
 
 Where:
 - \`Fx, Fy, Fz\`: Force measurements along X, Y, Z axes (Newtons)
